@@ -1,0 +1,14 @@
+An example of use:
+
+// preparation
+dynamic huh = new Query(@"http://192.168.0.100:5555", @"myusername", @"mypassword");
+
+// looking up the name of a specific project (of id 'bt2') within a specific project (of id 'Project2')
+var projectName = huh.Projects.Project2.BuildTypes.bt2.Name;
+
+
+// looping through and looking up the names of all the build types within a specific project (of id 'Project2')
+foreach (var buildType in huh.Projects.Project2.BuildTypes)
+{
+  var name = buildType.Name;
+}
