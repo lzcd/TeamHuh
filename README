@@ -12,3 +12,6 @@ foreach (var buildType in huh.Projects.Project2.BuildTypes)
 {
   var name = buildType.Name;
 }
+
+
+(Please note everything is case insensitive)
