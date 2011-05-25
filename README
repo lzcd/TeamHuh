@@ -1,7 +1,7 @@
 An example of use:
 
 // preparation
-dynamic huh = new Query(@"http://192.168.0.100:5555", @"myusername", @"mypassword");
+dynamic huh = new Query(myServerName, myUserName, myPassword);
 
 // looking up the name of a specific project (of id 'bt2') within a specific project (of id 'Project2')
 var projectName = huh.Projects.Project2.BuildTypes.bt2.Name;
