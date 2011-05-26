@@ -23,10 +23,30 @@ namespace TeamHuh
 
         private XDocument document;
 
-        protected Query(string baseUrl, string username, string password, XDocument document)
+        protected Query(
+            string baseUrl,
+            string username, string password,
+            XDocument document,
+            string nestedName = null)
             : this(baseUrl, username, password)
         {
-            this.document = document;
+            if (string.IsNullOrEmpty(nestedName))
+            {
+                this.document = document;
+            }
+            else
+            {
+                var selected = default(XElement);
+
+                if (selected == null)
+                {
+                    TryFindDecendant(nestedName, document, out selected);
+                }
+
+                this.document = new XDocument(selected);
+
+            }
+
         }
 
         WebClient client;
@@ -34,18 +54,21 @@ namespace TeamHuh
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
             var queryUrl = default(string);
+            var nestedName = default(string);
 
             if (document != null)
             {
-
                 var selected = default(XElement);
-                if (TryFindDecendant(binder.Name, document, out selected))
+
+                if (selected == null &&
+                    TryFindDecendant(binder.Name, document, out selected))
                 {
                     result = new Query(
                         baseUrl: baseUrl,
                         username: username,
                         password: password,
-                        document: new XDocument(selected));
+                        document: new XDocument(selected),
+                        nestedName: null);
                     return true;
                 }
 
@@ -67,6 +90,7 @@ namespace TeamHuh
                     return true;
                 }
 
+                nestedName = binder.Name;
                 var href = default(string);
                 TryFindAttributeValueByName("href", selected, out href);
                 queryUrl = baseUrl + href;
@@ -80,6 +104,7 @@ namespace TeamHuh
             TryLoadXml(queryUrl, out childDocument);
 
             result = new Query(
+                       nestedName: nestedName,
                        baseUrl: baseUrl,
                        username: username,
                        password: password,
@@ -98,7 +123,7 @@ namespace TeamHuh
             }
 
             using (var stream = client.OpenRead(queryUrl))
-            using (var reader = XmlReader.Create(stream))
+            using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
             {
                 document = XDocument.Load(reader);
             }
@@ -141,7 +166,8 @@ namespace TeamHuh
 
         public IEnumerator GetEnumerator()
         {
-            var decendants = from decendant in document.Elements().First().Descendants()
+            var childName = document.Descendants().Skip(1).First().Name.LocalName;
+            var decendants = from decendant in document.Descendants(childName)
                              select new Query(
                                baseUrl: baseUrl,
                                username: username,
