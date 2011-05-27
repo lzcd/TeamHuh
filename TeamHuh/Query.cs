@@ -166,14 +166,35 @@ namespace TeamHuh
 
         public IEnumerator GetEnumerator()
         {
-            var childName = document.Descendants().Skip(1).First().Name.LocalName;
-            var decendants = from decendant in document.Descendants(childName)
-                             select new Query(
-                               baseUrl: baseUrl,
-                               username: username,
-                               password: password,
-                               document: new XDocument(decendant));
-            return decendants.GetEnumerator();
+            var allDecendants = document.Descendants();
+            if (allDecendants.Count() == 1)
+            {
+                var href = default(string);
+                TryFindAttributeValueByName("href", allDecendants.First(), out href);
+                var queryUrl = baseUrl + href;
+
+                var childDocument = default(XDocument);
+                TryLoadXml(queryUrl, out childDocument);
+
+                var result = new Query(
+                           baseUrl: baseUrl,
+                           username: username,
+                           password: password,
+                           document: childDocument);
+
+                return result.GetEnumerator();
+            }
+            else
+            {
+                var childName = allDecendants.Skip(1).First().Name.LocalName;
+                var decendants = from decendant in document.Descendants(childName)
+                                 select new Query(
+                                   baseUrl: baseUrl,
+                                   username: username,
+                                   password: password,
+                                   document: new XDocument(decendant));
+                return decendants.GetEnumerator();
+            }
         }
     }
 }
