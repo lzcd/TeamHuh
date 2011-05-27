@@ -53,6 +53,12 @@ namespace TeamHuh
 
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
+            if (binder.Name.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
+            {
+                result = (document.Descendants().Count() > 0);
+                return true;
+            }
+
             var queryUrl = default(string);
             var nestedName = default(string);
 
@@ -170,7 +176,10 @@ namespace TeamHuh
             if (allDecendants.Count() == 1)
             {
                 var href = default(string);
-                TryFindAttributeValueByName("href", allDecendants.First(), out href);
+                if (!TryFindAttributeValueByName("href", allDecendants.First(), out href))
+                {
+                    return "".GetEnumerator();
+                }
                 var queryUrl = baseUrl + href;
 
                 var childDocument = default(XDocument);
