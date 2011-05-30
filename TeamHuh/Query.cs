@@ -37,11 +37,11 @@ namespace TeamHuh
             else
             {
                 var selected = default(XElement);
-
                 if (selected == null)
                 {
                     TryFindDecendant(nestedName, document, out selected);
                 }
+
 
                 this.document = new XDocument(selected);
 
@@ -56,6 +56,14 @@ namespace TeamHuh
             if (binder.Name.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
             {
                 result = (document.Descendants().Count() > 0);
+                return true;
+            }
+
+            if (binder.Name.Equals("first", StringComparison.CurrentCultureIgnoreCase))
+            {
+                var enumerator = GetEnumerator();
+                enumerator.MoveNext();
+                result = enumerator.Current;
                 return true;
             }
 
@@ -173,37 +181,40 @@ namespace TeamHuh
         public IEnumerator GetEnumerator()
         {
             var allDecendants = document.Descendants();
-            if (allDecendants.Count() == 1)
+            switch (allDecendants.Count())
             {
-                var href = default(string);
-                if (!TryFindAttributeValueByName("href", allDecendants.First(), out href))
-                {
+                case 0:
                     return "".GetEnumerator();
-                }
-                var queryUrl = baseUrl + href;
+                case 1:
+                    var href = default(string);
+                    if (!TryFindAttributeValueByName("href", allDecendants.First(), out href))
+                    {
+                        return "".GetEnumerator();
+                    }
+                    var queryUrl = baseUrl + href;
 
-                var childDocument = default(XDocument);
-                TryLoadXml(queryUrl, out childDocument);
+                    var childDocument = default(XDocument);
+                    TryLoadXml(queryUrl, out childDocument);
 
-                var result = new Query(
-                           baseUrl: baseUrl,
-                           username: username,
-                           password: password,
-                           document: childDocument);
+                    var result = new Query(
+                               baseUrl: baseUrl,
+                               username: username,
+                               password: password,
+                               document: childDocument);
 
-                return result.GetEnumerator();
+                    return result.GetEnumerator();
+                default:
+                    var childName = allDecendants.Skip(1).First().Name.LocalName;
+                    var decendants = from decendant in document.Descendants(childName)
+                                     select new Query(
+                                       baseUrl: baseUrl,
+                                       username: username,
+                                       password: password,
+                                       document: new XDocument(decendant));
+                    return decendants.GetEnumerator();
             }
-            else
-            {
-                var childName = allDecendants.Skip(1).First().Name.LocalName;
-                var decendants = from decendant in document.Descendants(childName)
-                                 select new Query(
-                                   baseUrl: baseUrl,
-                                   username: username,
-                                   password: password,
-                                   document: new XDocument(decendant));
-                return decendants.GetEnumerator();
-            }
+
+
         }
     }
 }
