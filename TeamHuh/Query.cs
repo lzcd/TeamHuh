@@ -47,7 +47,7 @@ namespace TeamHuh
                 if (selected == null)
                 {
                     var attributeValue = default(string);
-                    if (TryFindAttributeValueByName("paused", document.Descendants().First(), out attributeValue))
+                    if (TryFindAttributeValueByName(nestedName, document.Descendants().First(), out attributeValue))
                     {
                         differedValue = attributeValue;
                         hasDifferedValue = true;
