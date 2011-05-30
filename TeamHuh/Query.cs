@@ -22,6 +22,8 @@ namespace TeamHuh
         }
 
         private XDocument document;
+        protected object differedValue;
+        protected bool hasDifferedValue;
 
         protected Query(
             string baseUrl,
@@ -42,6 +44,17 @@ namespace TeamHuh
                     TryFindDecendant(nestedName, document, out selected);
                 }
 
+                if (selected == null)
+                {
+                    var attributeValue = default(string);
+                    if (TryFindAttributeValueByName("paused", document.Descendants().First(), out attributeValue))
+                    {
+                        differedValue = attributeValue;
+                        hasDifferedValue = true;
+                        return;
+
+                    }
+                }
 
                 this.document = new XDocument(selected);
 
@@ -55,9 +68,23 @@ namespace TeamHuh
         {
             if (binder.Name.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
             {
+                if (hasDifferedValue)
+                {
+                    result = true;
+                    return true;
+                }
+
                 result = (document.Descendants().Count() > 0);
                 return true;
             }
+
+            if (hasDifferedValue)
+            {
+                result = differedValue;
+                return true;
+            }
+
+
 
             if (binder.Name.Equals("first", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -122,12 +149,20 @@ namespace TeamHuh
             var childDocument = default(XDocument);
             TryLoadXml(queryUrl, out childDocument);
 
-            result = new Query(
+            var resultQuery = new Query(
                        nestedName: nestedName,
                        baseUrl: baseUrl,
                        username: username,
                        password: password,
                        document: childDocument);
+
+            if (resultQuery.hasDifferedValue)
+            {
+                result = resultQuery.differedValue;
+                return true;
+            }
+
+            result = resultQuery;
             return true;
             //return base.TryGetMember(binder, out result);
         }
