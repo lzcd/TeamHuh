@@ -62,8 +62,13 @@ namespace TeamHuh
             if (binder.Name.Equals("first", StringComparison.CurrentCultureIgnoreCase))
             {
                 var enumerator = GetEnumerator();
-                enumerator.MoveNext();
-                result = enumerator.Current;
+                if (enumerator.MoveNext())
+                {
+                    result = enumerator.Current;
+                    return true;
+                }
+
+                result = null;
                 return true;
             }
 
