@@ -42,6 +42,15 @@ namespace TeamHuh
                 if (selected == null)
                 {
                     TryFindDecendant(nestedName, document, out selected);
+
+                    // do we need to 'unwrap' a text value? 
+                    if (selected != null &&
+                        !string.IsNullOrWhiteSpace(selected.Value))
+                    {
+                        differedValue = selected.Value;
+                        hasDifferedValue = true;
+                        return;
+                    }
                 }
 
                 if (selected == null)
@@ -66,7 +75,9 @@ namespace TeamHuh
 
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
-            if (binder.Name.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
+            var bindingName = binder.Name.Replace("_", "-");
+
+            if (bindingName.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
             {
                 if (hasDifferedValue)
                 {
@@ -86,7 +97,7 @@ namespace TeamHuh
 
 
 
-            if (binder.Name.Equals("first", StringComparison.CurrentCultureIgnoreCase))
+            if (bindingName.Equals("first", StringComparison.CurrentCultureIgnoreCase))
             {
                 var enumerator = GetEnumerator();
                 if (enumerator.MoveNext())
@@ -107,7 +118,7 @@ namespace TeamHuh
                 var selected = default(XElement);
 
                 if (selected == null &&
-                    TryFindDecendant(binder.Name, document, out selected))
+                    TryFindDecendant(bindingName, document, out selected))
                 {
                     result = new Query(
                         baseUrl: baseUrl,
@@ -120,7 +131,7 @@ namespace TeamHuh
 
                 if (selected == null)
                 {
-                    TryFindById(binder.Name, document, out selected);
+                    TryFindById(bindingName, document, out selected);
                 }
 
                 if (selected == null)
@@ -130,20 +141,20 @@ namespace TeamHuh
 
 
                 var attributeValue = default(string);
-                if (TryFindAttributeValueByName(binder.Name, selected, out attributeValue))
+                if (TryFindAttributeValueByName(bindingName, selected, out attributeValue))
                 {
                     result = attributeValue;
                     return true;
                 }
 
-                nestedName = binder.Name;
+                nestedName = bindingName;
                 var href = default(string);
                 TryFindAttributeValueByName("href", selected, out href);
                 queryUrl = baseUrl + href;
             }
             else
             {
-                queryUrl = baseUrl + @"/httpAuth/app/rest/" + binder.Name.ToLower();
+                queryUrl = baseUrl + @"/httpAuth/app/rest/" + bindingName.ToLower();
             }
 
             var childDocument = default(XDocument);
