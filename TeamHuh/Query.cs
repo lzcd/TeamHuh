@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Xml;
 using System.Xml.Linq;
+using System.Collections.Generic;
 
 namespace TeamHuh
 {
@@ -38,16 +39,17 @@ namespace TeamHuh
             }
             else
             {
-                var selected = default(XElement);
+                var selected = default(IEnumerable<XElement>);
                 if (selected == null)
                 {
-                    TryFindDecendant(nestedName, document, out selected);
+                    TryFindDecendants(nestedName, document, out selected);
 
                     // do we need to 'unwrap' a text value? 
                     if (selected != null &&
-                        !string.IsNullOrWhiteSpace(selected.Value))
+                        selected.Count() == 1 &&
+                        !string.IsNullOrWhiteSpace(selected.First().Value))
                     {
-                        differedValue = selected.Value;
+                        differedValue = selected.First().Value;
                         hasDifferedValue = true;
                         return;
                     }
@@ -117,14 +119,15 @@ namespace TeamHuh
             {
                 var selected = default(XElement);
 
+                var multipleSelections = default(IEnumerable<XElement>);
                 if (selected == null &&
-                    TryFindDecendant(bindingName, document, out selected))
+                    TryFindDecendants(bindingName, document, out multipleSelections))
                 {
                     result = new Query(
                         baseUrl: baseUrl,
                         username: username,
                         password: password,
-                        document: new XDocument(selected),
+                        document: new XDocument(multipleSelections),
                         nestedName: null);
                     return true;
                 }
@@ -204,13 +207,13 @@ namespace TeamHuh
             return true;
         }
 
-        private bool TryFindDecendant(string name, XDocument document, out XElement selectedDecendant)
+        private bool TryFindDecendants(string name, XDocument document, out IEnumerable<XElement> selectedDecendants)
         {
-            selectedDecendant = (from item in document.Descendants()
+            selectedDecendants = from item in document.Descendants()
                                  where item.Name.LocalName.Equals(name, StringComparison.CurrentCultureIgnoreCase)
-                                 select item).SingleOrDefault();
+                                 select item;
 
-            return (selectedDecendant != null);
+            return (selectedDecendants.Count() > 0);
         }
 
         private bool TryFindById(string name, XDocument document, out XElement selectedItem)
