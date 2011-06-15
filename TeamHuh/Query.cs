@@ -197,6 +197,7 @@ namespace TeamHuh
             }
             catch
             {
+                document = new XDocument();
                 return false;
             }
 
