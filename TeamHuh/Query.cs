@@ -187,10 +187,17 @@ namespace TeamHuh
                 client.Headers.Add("Accepts:text/xml");
             }
 
-            using (var stream = client.OpenRead(queryUrl))
-            using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
+            try
             {
-                document = XDocument.Load(reader);
+                using (var stream = client.OpenRead(queryUrl))
+                using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
+                {
+                    document = XDocument.Load(reader);
+                }
+            }
+            catch
+            {
+                return false;
             }
 
             return true;
