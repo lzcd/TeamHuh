@@ -14,89 +14,38 @@ namespace TeamHuh
         private string baseUrl;
         private string username;
         private string password;
+        private XDocument document;
+        private XDocument childDocument;
 
-        public Query(string baseUrl, string username, string password)
+        public Query(
+            string baseUrl,
+            string username,
+            string password,
+            XDocument document = null)
         {
             this.baseUrl = baseUrl;
             this.username = username;
             this.password = password;
+            this.document = document;
         }
 
-        private XDocument document;
-        protected object differedValue;
-        protected bool hasDifferedValue;
 
-        protected Query(
-            string baseUrl,
-            string username, string password,
-            XDocument document,
-            string nestedName = null)
-            : this(baseUrl, username, password)
-        {
-            if (string.IsNullOrEmpty(nestedName))
-            {
-                this.document = document;
-            }
-            else
-            {
-                var selected = default(IEnumerable<XElement>);
-                if (selected == null)
-                {
-                    TryFindDecendants(nestedName, document, out selected);
-
-                    // do we need to 'unwrap' a text value? 
-                    if (selected != null &&
-                        selected.Count() == 1 &&
-                        !string.IsNullOrWhiteSpace(selected.First().Value))
-                    {
-                        differedValue = selected.First().Value;
-                        hasDifferedValue = true;
-                        return;
-                    }
-                }
-
-                if (selected == null)
-                {
-                    var attributeValue = default(string);
-                    if (TryFindAttributeValueByName(nestedName, document.Descendants().First(), out attributeValue))
-                    {
-                        differedValue = attributeValue;
-                        hasDifferedValue = true;
-                        return;
-
-                    }
-                }
-
-                this.document = new XDocument(selected);
-
-            }
-
-        }
-
-        WebClient client;
 
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
-            var bindingName = binder.Name.Replace("_", "-");
+            var bindingName = binder.Name.Replace("_", "-").ToLower();
 
-            if (bindingName.Equals("exists", StringComparison.CurrentCultureIgnoreCase))
+            if (document == null)
             {
-                if (hasDifferedValue)
-                {
-                    result = true;
-                    return true;
-                }
-
-                result = (document.Descendants().Count() > 0);
+                var queryUrl = baseUrl + @"/httpAuth/app/rest/" + bindingName;
+                document = Retrieve(queryUrl);
+                result = new Query(
+                    baseUrl: baseUrl,
+                    username: username,
+                    password: password,
+                    document: document);
                 return true;
             }
-
-            if (hasDifferedValue)
-            {
-                result = differedValue;
-                return true;
-            }
-
 
 
             if (bindingName.Equals("first", StringComparison.CurrentCultureIgnoreCase))
@@ -112,120 +61,86 @@ namespace TeamHuh
                 return true;
             }
 
-            var queryUrl = default(string);
-            var nestedName = default(string);
-
-            if (document != null)
+            string value;
+            IEnumerable<XElement> selectedDecendants;
+            if (!TryFind(bindingName, document, out value, out selectedDecendants))
             {
-                var selected = default(XElement);
-
-                var multipleSelections = default(IEnumerable<XElement>);
-                if (selected == null &&
-                    TryFindDecendants(bindingName, document, out multipleSelections))
+                if (childDocument == null)
                 {
-                    result = new Query(
-                        baseUrl: baseUrl,
-                        username: username,
-                        password: password,
-                        document: new XDocument(multipleSelections),
-                        nestedName: null);
-                    return true;
+                    if (!TryRetrieveChildDocument(document, out childDocument))
+                    {
+                        result = null;
+                        return false;
+                    }
                 }
 
-                if (selected == null)
+                var firstChildElement = childDocument.Descendants().First();
+
+                if (!TryFind(bindingName, childDocument, out value, out selectedDecendants))
                 {
-                    TryFindById(bindingName, document, out selected);
+                    result = null;
+                    return false;
                 }
-
-                if (selected == null)
-                {
-                    selected = document.Elements().First();
-                }
-
-
-                var attributeValue = default(string);
-                if (TryFindAttributeValueByName(bindingName, selected, out attributeValue))
-                {
-                    result = attributeValue;
-                    return true;
-                }
-
-                nestedName = bindingName;
-                var href = default(string);
-                TryFindAttributeValueByName("href", selected, out href);
-                queryUrl = baseUrl + href;
-            }
-            else
-            {
-                queryUrl = baseUrl + @"/httpAuth/app/rest/" + bindingName.ToLower();
             }
 
-            var childDocument = default(XDocument);
-            TryLoadXml(queryUrl, out childDocument);
-
-            var resultQuery = new Query(
-                       nestedName: nestedName,
-                       baseUrl: baseUrl,
-                       username: username,
-                       password: password,
-                       document: childDocument);
-
-            if (resultQuery.hasDifferedValue)
+            if (value != null)
             {
-                result = resultQuery.differedValue;
+                result = value;
                 return true;
             }
 
-            result = resultQuery;
-            return true;
-            //return base.TryGetMember(binder, out result);
+            if (selectedDecendants != null)
+            {
+                result = new Query(
+                    baseUrl: baseUrl,
+                    username: username,
+                    password: password,
+                    document: new XDocument(selectedDecendants));
+                return true;
+            }
+
+            result = null;
+            return false;
         }
 
-        private bool TryLoadXml(string queryUrl, out XDocument document)
+        private bool TryRetrieveChildDocument(XDocument parentDocument, out XDocument childDocument)
         {
-            if (client == null)
+            string childHref;
+            var firstElement = parentDocument.Descendants().First();
+            if (!TryFindAttributeValueByName("href", firstElement, out childHref))
             {
-                client = new WebClient();
-                client.Credentials = new NetworkCredential(username, password);
-                client.Headers.Add("Accepts:text/xml");
+                childDocument = null;
+                return false;
             }
 
-            try
+            var queryUrl = baseUrl + childHref;
+            childDocument = Retrieve(queryUrl);
+            return true;
+        }
+
+        private bool TryFind(string bindingName, XDocument parentDocument, out string value, out IEnumerable<XElement> selectedDecendants)
+        {
+            value = null;
+            selectedDecendants = null;
+            var firstElement = parentDocument.Descendants().First();
+            return (TryFindAttributeValueByName(bindingName, firstElement, out value) ||
+                    TryFindDecendants(bindingName, parentDocument, out selectedDecendants));
+        }
+
+
+        private bool TryFindDecendants(string name, XDocument doc, out IEnumerable<XElement> selectedDecendants)
+        {
+            selectedDecendants = from item in doc.Descendants()
+                                 where item.Name.LocalName.Equals(name, StringComparison.CurrentCultureIgnoreCase)
+                                 select item;
+
+            if (selectedDecendants.Count() == 0)
             {
-                using (var stream = client.OpenRead(queryUrl))
-                using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
-                {
-                    document = XDocument.Load(reader);
-                }
-            }
-            catch
-            {
-                document = new XDocument();
+                selectedDecendants = null;
                 return false;
             }
 
             return true;
-        }
-
-        private bool TryFindDecendants(string name, XDocument document, out IEnumerable<XElement> selectedDecendants)
-        {
-            selectedDecendants = from item in document.Descendants()
-                                 where item.Name.LocalName.Equals(name, StringComparison.CurrentCultureIgnoreCase)
-                                 select item;
-
-            return (selectedDecendants.Count() > 0);
-        }
-
-        private bool TryFindById(string name, XDocument document, out XElement selectedItem)
-        {
-            selectedItem = (from items in document.Elements()
-                            from item in items.Elements()
-                            from attribute in item.Attributes()
-                            where attribute.Name.LocalName.Equals("id", StringComparison.CurrentCultureIgnoreCase) &&
-                                  attribute.Value.Equals(name, StringComparison.CurrentCultureIgnoreCase)
-                            select item).SingleOrDefault();
-
-            return (selectedItem != null);
         }
 
         private bool TryFindAttributeValueByName(string name, XElement element, out string selectedAttributeValue)
@@ -240,43 +155,63 @@ namespace TeamHuh
             return valueByName.TryGetValue(name.ToLower(), out selectedAttributeValue);
         }
 
+        private WebClient client;
+
+        private XDocument Retrieve(string queryUrl)
+        {
+            if (client == null)
+            {
+                client = new WebClient();
+                client.Credentials = new NetworkCredential(username, password);
+                client.Headers.Add("Accepts:text/xml");
+            }
+
+            using (var stream = client.OpenRead(queryUrl))
+            using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
+            {
+                return XDocument.Load(reader);
+            }
+
+            return null;
+        }
+
+
         public IEnumerator GetEnumerator()
         {
-            var allDecendants = document.Descendants();
-            switch (allDecendants.Count())
+            return GetAllChildren().GetEnumerator();
+        }
+
+        private List<Query> GetAllChildren()
+        {
+            var secondElement = document.Descendants().Skip(1);
+            var childCount = secondElement.Count();
+            if (childCount == 0)
             {
-                case 0:
-                    return "".GetEnumerator();
-                case 1:
-                    var href = default(string);
-                    if (!TryFindAttributeValueByName("href", allDecendants.First(), out href))
+                if (childDocument == null)
+                {
+                    if (!TryRetrieveChildDocument(document, out childDocument))
                     {
-                        return "".GetEnumerator();
+                        return new List<Query>();
                     }
-                    var queryUrl = baseUrl + href;
+                }
 
-                    var childDocument = default(XDocument);
-                    TryLoadXml(queryUrl, out childDocument);
+                secondElement = childDocument.Descendants().Skip(1);
+                childCount = secondElement.Count();
+                if (childCount == 0)
+                {
+                    return new List<Query>();
+                }
+            }
 
-                    var result = new Query(
+            var childName = secondElement.First().Name.LocalName;
+            var decendants = from decendant in document.Descendants(childName)
+                             select new Query(
                                baseUrl: baseUrl,
                                username: username,
                                password: password,
-                               document: childDocument);
-
-                    return result.GetEnumerator();
-                default:
-                    var childName = allDecendants.Skip(1).First().Name.LocalName;
-                    var decendants = from decendant in document.Descendants(childName)
-                                     select new Query(
-                                       baseUrl: baseUrl,
-                                       username: username,
-                                       password: password,
-                                       document: new XDocument(decendant));
-                    return decendants.GetEnumerator();
-            }
-
-
+                               document: new XDocument(decendant));
+            return decendants.ToList();
         }
+
     }
 }
