@@ -47,7 +47,6 @@ namespace TeamHuh
                 return true;
             }
 
-
             if (bindingName.Equals("first", StringComparison.CurrentCultureIgnoreCase))
             {
                 var enumerator = GetEnumerator();
@@ -91,12 +90,21 @@ namespace TeamHuh
 
             if (selectedDecendants != null)
             {
-                result = new Query(
-                    baseUrl: baseUrl,
-                    username: username,
-                    password: password,
-                    document: new XDocument(selectedDecendants));
-                return true;
+                if (selectedDecendants.Count() == 1 &&
+                    bindingName.Equals(selectedDecendants.First().Name.LocalName, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    result = selectedDecendants.First().Value;
+                    return true;
+                }
+                else
+                {
+                    result = new Query(
+                        baseUrl: baseUrl,
+                        username: username,
+                        password: password,
+                        document: new XDocument(selectedDecendants));
+                    return true;
+                }
             }
 
             result = null;
@@ -183,7 +191,8 @@ namespace TeamHuh
 
         private List<Query> GetAllChildren()
         {
-            var secondElement = document.Descendants().Skip(1);
+            var parentDocument = document;
+            var secondElement = parentDocument.Descendants().Skip(1);
             var childCount = secondElement.Count();
             if (childCount == 0)
             {
@@ -195,7 +204,8 @@ namespace TeamHuh
                     }
                 }
 
-                secondElement = childDocument.Descendants().Skip(1);
+                parentDocument = childDocument;
+                secondElement = parentDocument.Descendants().Skip(1);
                 childCount = secondElement.Count();
                 if (childCount == 0)
                 {
@@ -204,7 +214,7 @@ namespace TeamHuh
             }
 
             var childName = secondElement.First().Name.LocalName;
-            var decendants = from decendant in document.Descendants(childName)
+            var decendants = from decendant in parentDocument.Descendants(childName)
                              select new Query(
                                baseUrl: baseUrl,
                                username: username,
