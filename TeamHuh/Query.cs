@@ -91,10 +91,24 @@ namespace TeamHuh
             if (selectedDecendants != null)
             {
                 if (selectedDecendants.Count() == 1 &&
+                    !selectedDecendants.First().HasElements &&
                     bindingName.Equals(selectedDecendants.First().Name.LocalName, StringComparison.CurrentCultureIgnoreCase))
                 {
-                    result = selectedDecendants.First().Value;
-                    return true;
+                    XDocument stepChildDocument;
+                    if (TryRetrieveChildDocument(selectedDecendants.First(), out stepChildDocument))
+                    {
+                        result = new Query(
+                            baseUrl: baseUrl,
+                            username: username,
+                            password: password,
+                            document: stepChildDocument);
+                        return true;
+                    }
+                    else
+                    {
+                        result = selectedDecendants.First().Value;
+                        return true;
+                    }
                 }
                 else
                 {
@@ -111,11 +125,19 @@ namespace TeamHuh
             return false;
         }
 
+
+
         private bool TryRetrieveChildDocument(XDocument parentDocument, out XDocument childDocument)
         {
-            string childHref;
             var firstElement = parentDocument.Descendants().First();
-            if (!TryFindAttributeValueByName("href", firstElement, out childHref))
+            return TryRetrieveChildDocument(firstElement, out childDocument);
+        }
+
+        private bool TryRetrieveChildDocument(XElement element, out XDocument childDocument)
+        {
+            string childHref;
+
+            if (!TryFindAttributeValueByName("href", element, out childHref))
             {
                 childDocument = null;
                 return false;
