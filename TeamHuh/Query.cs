@@ -29,12 +29,27 @@ namespace TeamHuh
             this.document = document;
         }
 
-
+        const string existsKeyword = "exists";
 
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
             var bindingName = binder.Name.Replace("_", "-").ToLower();
 
+
+            if (bindingName.EndsWith(existsKeyword))
+            {
+                bindingName = bindingName.Substring(0, bindingName.Length - existsKeyword.Length);
+
+                object unusedResult;
+                result = TryFind(bindingName, out unusedResult);
+                return true;
+            }
+
+            return TryFind(bindingName, out result);
+        }
+
+        private bool TryFind(string bindingName, out object result)
+        {
             if (document == null)
             {
                 var queryUrl = baseUrl + @"/httpAuth/app/rest/" + bindingName;
@@ -71,6 +86,12 @@ namespace TeamHuh
                         result = null;
                         return false;
                     }
+                }
+
+                if (childDocument == null)
+                {
+                    result = null;
+                    return false;
                 }
 
                 var firstChildElement = childDocument.Descendants().First();
@@ -124,8 +145,6 @@ namespace TeamHuh
             result = null;
             return false;
         }
-
-
 
         private bool TryRetrieveChildDocument(XDocument parentDocument, out XDocument childDocument)
         {
@@ -196,13 +215,18 @@ namespace TeamHuh
                 client.Headers.Add("Accepts:text/xml");
             }
 
-            using (var stream = client.OpenRead(queryUrl))
-            using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
+            try
             {
-                return XDocument.Load(reader);
+                using (var stream = client.OpenRead(queryUrl))
+                using (var reader = XmlReader.Create(stream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Ignore }))
+                {
+                    return XDocument.Load(reader);
+                }
             }
-
-            return null;
+            catch
+            {
+                return null;
+            }
         }
 
 
