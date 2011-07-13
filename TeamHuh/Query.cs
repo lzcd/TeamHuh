@@ -131,13 +131,26 @@ namespace TeamHuh
                         return true;
                     }
                 }
+                else if (selectedDecendants.Count() == 1)
+                {
+                    result = new Query(
+                       baseUrl: baseUrl,
+                       username: username,
+                       password: password,
+                       document: new XDocument(selectedDecendants));
+                    return true;
+                }
                 else
                 {
+                    var newDoc = new XDocument();
+                    var rootElement = new XElement(bindingName + "s");
+                    rootElement.Add(selectedDecendants);
+                    newDoc.AddFirst(rootElement);
                     result = new Query(
                         baseUrl: baseUrl,
                         username: username,
                         password: password,
-                        document: new XDocument(selectedDecendants));
+                        document: newDoc);
                     return true;
                 }
             }
